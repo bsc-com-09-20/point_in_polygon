@@ -64,16 +64,27 @@ class DatabaseHandler:
         try:
             for feature in points_inside:
                 point_id = feature.id()
-                boundary_id = feature['polygon_id']  # Ensure 'polygon_id' is used correctly
+                polygon_id = feature['polygon_id'] if 'polygon_id' in feature.fields().names() else None
 
-                # Ensure the point_id and boundary_id are valid before submission
-                if point_id is not None and boundary_id is not None:
+                # Ensure the point_id and polygon_id are valid before submission
+                if point_id is not None and polygon_id is not None:
+                    # Check if the record already exists
                     cursor.execute(
-                        "INSERT INTO public.results (point_id, boundary_id, status) "
-                        "VALUES (%s, %s, 'inside')",
-                        (point_id, boundary_id)
+                        "SELECT COUNT(*) FROM public.results WHERE point_id = %s AND polygon_id = %s",
+                        (point_id, polygon_id)
                     )
-                    logging.info(f"Submitted point ID {point_id} with boundary ID {boundary_id}.")
+                    exists = cursor.fetchone()[0]
+
+                    if exists == 0:  # Only insert if it does not exist
+                        cursor.execute(
+                            "INSERT INTO public.results (point_id, polygon_id, status) "
+                            "VALUES (%s, %s, 'inside')",
+                            (point_id, polygon_id)
+                        )
+                        logging.info(f"Submitted point ID {point_id} with polygon ID {polygon_id}.")
+                    else:
+                        logging.info(f"Point ID {point_id} with polygon ID {polygon_id} already exists. Skipping insertion.")
+            
             self.connection.commit()
             logging.info("Data submitted successfully.")
         except Exception as e:
